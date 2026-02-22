@@ -653,6 +653,11 @@ def resume_incomplete_tasks():
 
 # --- API Routes ---
 
+@app.errorhandler(Exception)
+def handle_exception(e):
+    print(f"[ERROR] {request.method} {request.path} → {type(e).__name__}: {e}")
+    return jsonify({"error": "Internal server error"}), 500
+
 @app.route('/', methods=['GET'])
 def index():
     return render_template('index.html')
@@ -853,21 +858,28 @@ def delete_account(email):
     else:
         return jsonify({"error": "Account not found"}), 404
 
-# --- Health & Startup ---
-
+# --- Startup ---
 _startup_done = False
 _startup_lock = threading.Lock()
 
-@app.before_request
-def startup():
+def _run_startup():
     global _startup_done
-    if not _startup_done:
-        with _startup_lock:
-            if not _startup_done:
-                db.init_db()
-                resume_incomplete_tasks()
+    retries = 0
+    while True:
+        try:
+            db.init_db()
+            resume_incomplete_tasks()
+            with _startup_lock:
                 _startup_done = True
+            print("[STARTUP] Background startup complete. API is fully ready.")
+            return
+        except Exception as e:
+            retries += 1
+            wait = min(2 ** retries, 30)
+            print(f"[STARTUP] DB init failed (attempt {retries}), retrying in {wait}s... Error: {e}")
+            time.sleep(wait)
 
+threading.Thread(target=_run_startup, daemon=True).start()
 
 if __name__ == '__main__':
     print(f"Maximum concurrent tasks: {MAX_CONCURRENT_TASKS}")
