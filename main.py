@@ -879,7 +879,7 @@ def _run_startup():
             print(f"[STARTUP] DB init failed (attempt {retries}), retrying in {wait}s... Error: {e}")
             time.sleep(wait)
 
-
+_run_startup()
 
 if __name__ == '__main__':
     print(f"Maximum concurrent tasks: {MAX_CONCURRENT_TASKS}")
